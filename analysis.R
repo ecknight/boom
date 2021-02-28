@@ -35,9 +35,7 @@ my.theme <- theme_classic() +
         plot.title=element_text(size=12))
 
 #1. WRANGLING####
-setwd("/Users/ellyknight/Documents/UoA/Projects/Projects/BigBoom/Analysis")
-
-nest1 <- read.csv("NestsForTerritorMapping.csv") %>% 
+nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
   rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
   dplyr::mutate(ID=paste0(BirdID,"-",Year))
@@ -502,7 +500,7 @@ sd(nest.distances$distance)
 #5. NEST RSF####
 #Wrangle----
 #add nest data
-nest1 <- read.csv("NestsForTerritorMapping.csv") %>% 
+nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
   rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
   dplyr::mutate(ID=paste0(BirdID,"-",Year))
@@ -610,8 +608,7 @@ final <- all.sf %>%
 
 table(final$BirdID, final$Year, final$type)
 
-write.csv(final, "UsedAvailableData.csv", row.names=FALSE)
-
+#write.csv(final, "UsedAvailableData.csv", row.names=FALSE)
 final <- read.csv("UsedAvailableData.csv")
 
 #Visualize
@@ -673,109 +670,3 @@ pred <- predict(fit3, newdat, type="response", re.form=NA, se.fit=TRUE) %>%
          lwr = (lwr.rel - min(pred.rel))/(max(pred.rel) - min(pred.rel)))
 
 write.csv(pred, "RSFPredictions.csv", row.names=FALSE)
-
-plot.rsf <- ggplot(pred) +
-  geom_ribbon(aes(ymin=lwr, ymax=upr, x=Distance, group=Area.rd), alpha=0.4) +
-  geom_line(aes(x=Distance, y=pred, colour=factor(Area.rd))) +
-  scale_colour_viridis_d(name="95% kernal\narea (ha)") +
-  my.theme +
-  xlab("Distance from nest (m)") +
-  ylab("Wingboom selection probability") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme(strip.background = element_blank(),
-        strip.text.y = element_blank()) +
-  scale_x_continuous(limits = c(0, 600)) +
-  scale_y_continuous(limits = c(-0.05, 1.10), breaks=c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
-
-ggsave(plot.rsf, file="Figures/Fig2RSF.jpeg", device = "jpeg", height=6, width=8, units="in")
-
-#8. RSF FOR EACH KERNEL####
-kernels <- seq(5, 95, 5)
-
-kernel.aic.list <- list()
-kernel.coeff.list <- list()
-for(i in 1:length(kernels)){
-  
-  kernel.i <- kernels[i]
-  
-  kd.shp <- getverticeshr(kd, kernel.i)
-  
-  random <- sapply(slot(kd.shp, "polygons"), 
-                   function(i) spsample(i, n=100, type="random", offset=c(0,0),
-                                        proj4string = CRS("+proj=utm +zone=12 +datum=WGS84")))
-  random.merged <- do.call("rbind", random) 
-  ids <- sapply(slot(kd.shp, "polygons"), function(i) slot(i, "ID"))
-  newpts <- sapply(random, function(i) nrow(i@coords))
-  pt_id <- rep(ids, newpts)
-  random.final <- random.merged %>% 
-    st_as_sf() %>% 
-    mutate(ID=pt_id,
-           type=0) 
-  
-  rand.sf <- st_as_sf(random.final) %>% 
-    mutate(Type=0)
-  
-  all.sf <- st_as_sf(boom.sp) %>% 
-    mutate(type=1) %>% 
-    rbind(random.final) %>% 
-    left_join(kd.area, by=c("ID")) %>% 
-    left_join(nest1, by=c("ID")) 
-  
-  boom.coord <- SpatialPoints(coords=st_coordinates(all.sf), proj4string = CRS("+proj=utm +zone=12 +datum=WGS84")) %>% 
-    sp::spTransform("+proj=longlat +datum=WGS84")
-  nest.coord <- SpatialPoints(coords=cbind(all.sf$NestX, all.sf$NestY), proj4string = CRS("+proj=utm +zone=12 +datum=WGS84")) %>% 
-    sp::spTransform(CRS("+proj=longlat +datum=WGS84"))
-  Distance <- distHaversine(boom.coord, nest.coord)
-  
-  final <- all.sf %>% 
-    st_coordinates() %>% 
-    cbind(all.sf) %>% 
-    cbind(Distance) %>% 
-    mutate(Distance.st = scale(Distance)[,1],
-           area=hr95,
-           area.st=scale(area)[,1]) %>% 
-    data.frame() %>% 
-    dplyr::select(-geometry) 
-  
-  fit1 <- glmer(type ~ Distance.st*area.st + (1|BirdID), data=final,
-                family=binomial(link="logit"))
-  fit2 <- glmer(type ~ Distance.st + (1|BirdID), data=final,
-                family=binomial(link="logit"))
-  fit3 <- glmer(type ~ 1 + (1|BirdID), data=final,
-                family=binomial(link="logit"))
-  
-  
-  kernel.aic.list[[i]] <- aictab(list(fit1, fit2, fit3), sort=F)  %>% 
-    data.frame() %>% 
-    mutate(kernel=kernel.i)
-  
-  kernel.coeff.list[[i]] <- summary(fit1)[["coefficients"]] %>% 
-    data.frame() %>% 
-    mutate(var=summary(fit1)[["vcov"]]@Dimnames[[1]],
-           kernel=kernel.i)
-  
-  print(paste0("FINISHED KERNEL ", kernel.i))
-  
-}
-
-#kernel.aic <- rbindlist(kernel.aic.list)
-#kernel.coeff <- rbindlist(kernel.coeff.list)
-
-#write.csv(kernel.aic, "MultikernelRSFAIC.csv", row.names = FALSE)
-#write.csv(kernel.coeff, "MultikernelRSFCoefficients.csv", row.names = FALSE)
-
-kernel.aic <- read.csv("MultikernelRSFAIC.csv")
-kernel.coeff <- read.csv("MultikernelRSFCoefficients.csv")
-
-plot.aic <- ggplot(kernel.aic) +
-  geom_line(aes(x=kernel, y=AICc, colour=Modnames), show.legend=FALSE) +
-  geom_vline(aes(xintercept=75))
-
-plot.coeff <- ggplot(kernel.coeff %>% 
-                       dplyr::filter(var=="Distance.st")) +
-  geom_line(aes(x=kernel, y=Estimate, colour=var), show.legend=FALSE) +
-  geom_point(aes(x=kernel, y=Estimate, colour=var), show.legend=FALSE) +
-  geom_hline(aes(yintercept=0)) +
-  geom_vline(aes(xintercept=75))
-
-grid.arrange(plot.aic, plot.coeff, nrow=2)

@@ -1,3 +1,6 @@
+#title: Analysis of common nighthawk territoriality and significance of the wingboom display
+#author: Elly C. Knight
+
 options(scipen = 999)
 set.seed(1234)
 

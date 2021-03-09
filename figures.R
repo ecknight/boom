@@ -19,6 +19,7 @@ library(grid)
 library(nord)
 library(cowplot)
 library(colorspace)
+library(pBrackets) #for brackets on spectrogram
 
 my.theme <- theme_classic() +
   theme(text=element_text(size=12, family="Arial"),
@@ -61,20 +62,38 @@ boom4 <- boom3 %>%
 
 #FIGURE 1. SPECTROGRAM####
 
+bracketsGrob <- function(...){
+  l <- list(...)
+  e <- new.env()
+  e$l <- l
+  grid:::recordGrob(  {
+    do.call(grid.brackets, l)
+  }, e)
+}
+
 wav <- readWave("/Users/ellyknight/Documents/UoA/Presentations/Materials/Recordings/CONI Common nighthawk - boom.wav")
 wav.f <- bwfilter(wav, from=200, to=5400, output="Wave")
 
-spectro <- ggspectro(wav.f, flim=c(0,8), wl=1024, ovlp=60) +
+Cairo(width = 6, height = 8, file="Figures/Fig1Spectrogram.jpeg", type="jpeg", pointsize=12,
+      bg = "transparent", canvas = "white", units = "in", dpi = 300)
+
+spectro <- ggspectro(wav.f, flim=c(0,6), wl=1024, ovlp=60) +
   stat_contour(geom="polygon", aes(fill=..level..), bins=30, show.legend=FALSE) +
   scale_fill_continuous(name="Amplitude\n(dB)\n", limits=c(-40,0),
                         na.value="transparent", low="white", high="black") + 
+  xlim(c(0, 0.9)) +
   xlab("Time (s)") +
   ylab("Frequency (kHz)") +
+  geom_text(x=0, y=1, label="Wingboom", angle=90, size=6, family="Arial") + 
+  geom_text(x=0, y=4, label="Call", angle=90, size=6, family="Arial") +
   my.theme
+spectro
+grid.brackets(x1=400, x2=400, y1=1480, y2=100, lwd=2, col="black")
+grid.brackets(x1=400, x2=400, y1=2100, y2=1480, lwd=2, col="black")
 
-ggplot2::ggsave(plot=spectro, "Figures/Fig1Spectrogram.jpeg", width=6, height=8, units="in", device="jpeg")
+dev.off()
 
-
+ 
 #FIGURE 2. STUDY AREA####
 #Part 1. Study area----
 nam <- map_data("world", region=c("Canada", 
@@ -244,11 +263,11 @@ hr.50 <- read_sf("shapefiles/HR50.shp") %>%
   left_join(sites) %>% 
   st_transform(crs=4326)
 
-nest1 <- read.csv("NestsForTerritorMapping.csv") %>% 
+nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
   st_as_sf(coords=c("LocationX", "LocationY"), crs="+proj=utm +zone=12 +datum=WGS84") %>% 
   st_transform(crs=4326) %>% 
   st_coordinates() %>% 
-  cbind(read.csv("NestsForTerritorMapping.csv")) %>% 
+  cbind(read.csv("NestsForTerritoryMapping.csv")) %>% 
   rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
   dplyr::mutate(ID=paste0(BirdID,"-",Year)) %>% 
@@ -264,26 +283,11 @@ qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',] %>%
 col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
 pie(nchar(col_vector), col=col_vector)
 
-clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   rand=runif(n)) %>% 
-  arrange(rand) %>% 
-  mutate(col=rainbow(n, v=0.75, s=0.7)) %>% 
-  arrange(BirdID)
+col_chosen <- col_vector[c(9:18, 28, 8, 20, 27, 7,
+                           6, 19)]
 
 clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   rand=runif(n)) %>% 
-  arrange(rand) %>% 
-  mutate(col=sequential_hcl(n, "Viridis")) %>% 
-  arrange(BirdID)
-
-clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   rand=runif(n)) %>% 
-  arrange(rand) %>% 
-  mutate(col=qualitative_hcl(n, "Dynamic")) %>% 
-  arrange(BirdID)
-
-clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   col=sample(col_vector, n))
+                   col=sample(col_chosen, n))
 
 pie(rep(1,n), col=clrs$col)
 
@@ -410,7 +414,7 @@ plot.legend.bird <- ggplot() +
 #plot.legend.bird
 legend.bird <- get_legend(plot.legend.bird)
 
-lot.legend.iso <- ggplot() +
+plot.legend.iso <- ggplot() +
   geom_sf(data=all, aes(alpha=factor(iso)), fill="black", inherit.aes = FALSE, colour="grey30", show.legend = TRUE) +
   scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth", labels=c("50%", "95%")) + 
   theme(legend.position="bottom")

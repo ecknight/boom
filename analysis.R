@@ -447,7 +447,7 @@ write.csv(overlap.years, "PHRBetweenYears.csv", row.names = FALSE)
 #T-test of overlap----
 overlap.years <- read.csv("PHRBetweenYears.csv")
 
-t.test(overlap.years$Overlap.mn, alternative="greater", mu=0)
+t.test(overlap.years$Overlap.mn, mu=0)
 
 summary(overlap.years)
 sd(overlap.years$Overlap.mn)

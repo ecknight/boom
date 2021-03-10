@@ -37,6 +37,8 @@ my.theme <- theme_classic() +
         legend.title=element_text(size=16),
         plot.title=element_text(size=12))
 
+load("BoomWorkingSpace.Rdata")
+
 #1. WRANGLING####
 nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
   rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
@@ -121,8 +123,8 @@ for(h in 1:boot){
 }
 
 #Collapse results----
-#samplesize.kde <- rbindlist(samplesize.kde.list)
-#write.csv(samplesize.kde, "KDESampleSizeBootstrapResults.csv", row.names = FALSE)
+samplesize.kde <- rbindlist(samplesize.kde.list)
+write.csv(samplesize.kde, "KDESampleSizeBootstrapResults.csv", row.names = FALSE)
 samplesize.kde <- read.csv("KDESampleSizeBootstrapResults.csv")
 
 #NLS
@@ -461,7 +463,7 @@ kd.area.pr <- kd.area.all %>%
 t.test(kd.area.pr$hr95 ~ kd.area.pr$Year, alternative="two.sided", paired=TRUE)
 
 #Distance between nests----
-birds.year.nest <- expand.grid(BirdID = birds.year$BirdID, Year=c(2016, 2017)) %>% 
+birds.year.nest <- expand.grid(BirdID = birds.year$BirdID, Year=c("2016", "2017")) %>% 
   left_join(nest1) %>% 
   dplyr::filter(!is.na(NestID)) %>% 
   group_by(BirdID) %>% 
@@ -504,7 +506,6 @@ sd(nest.distances$distance)
 #Wrangle----
 #add nest data
 nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
-  rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
   dplyr::mutate(ID=paste0(BirdID,"-",Year))
 
@@ -514,15 +515,15 @@ boom6 <- boom6 %>%
 
 
 #Clean up year with two nests for same male
-boom6 <- boom6 %>% 
+boom7 <- boom6 %>% 
   dplyr::filter(!(NestID==12 & DateTime > "2016-07-02 00:00:00"),
                 !(NestID==27 & DateTime < "2016-07-10 00:00:00"))
 
 
 
 #Calculate KDE----
-boom.sp <- SpatialPointsDataFrame(coords=cbind(boom7$BoomX, boom7$BoomY), 
-                                  data=data.frame(ID=boom8$ID),
+boom.sp <- SpatialPointsDataFrame(coords=cbind(boom6$BoomX, boom6$BoomY), 
+                                  data=data.frame(ID=boom7$ID),
                                   proj4string = CRS("+proj=utm +zone=12 +datum=WGS84"))
 
 kd <- kernelUD(boom.sp, grid = 1000, h="href", same4all=FALSE)
@@ -580,7 +581,7 @@ random.final <- random.merged %>%
 #Plot to check
 ggplot() +
   geom_sf(aes(colour=ID), data=random.final) + 
-  geom_point(aes(x=BoomX, y=BoomY, colour=ID), data=boom8, shape=4)
+  geom_point(aes(x=BoomX, y=BoomY, colour=ID), data=boom7, shape=4)
 
 #Put used and available together
 rand.sf <- st_as_sf(random.final) %>% 
@@ -611,7 +612,7 @@ final <- all.sf %>%
 
 table(final$BirdID, final$Year, final$type)
 
-#write.csv(final, "UsedAvailableData.csv", row.names=FALSE)
+write.csv(final, "UsedAvailableData.csv", row.names=FALSE)
 final <- read.csv("UsedAvailableData.csv")
 
 #Visualize
@@ -645,8 +646,6 @@ fit2 <- glmer(type ~ 1 + (1|BirdID), data=final,
               family=binomial(link="logit")) #Null model
 fit3 <- glmer(type ~ Distance.st*area.st + (1|BirdID), data=final,
               family=binomial(link="logit")) #Model with MCP
-fit4 <- glmer(type ~ Distance.st + area.st + Distance.st*area.st+ (1|BirdID), data=final,
-              family=binomial(link="logit"))
 aictab(list(fit1, fit2, fit3), sort=F)
 
 #7. PLOT RSF####
@@ -655,21 +654,29 @@ att.dist <- attributes(scale(final$Distance))
 att.area <- attributes(scale(final$area))
 
 newdat <- expand.grid(Distance.st=seq(min(final$Distance.st), max(final$Distance.st), 0.01),
-                      area.st=c(-1.0065, 0.072, 1.342, 1.976)) %>% 
+                      area.st=c(-1.0065, 0.072, 1.342, 1.976),
+                      BirdID=unique(final$BirdID)) %>% 
   mutate(Distance=Distance.st*att.dist$`scaled:scale` + att.dist$`scaled:center`,
          Area=area.st*att.area$`scaled:scale` + att.area$`scaled:center`,
          Area.rd=round(Area, 1))
 table(newdat$Area)
+  
+pred <- predictInterval(fit3, newdata = newdat, which="fixed", n.sims = 1000, type="probability", level=0.95) %>% 
+  cbind(newdat)
 
-pred <- predict(fit3, newdat, type="response", re.form=NA, se.fit=TRUE) %>% 
-  cbind(newdat) %>% 
-  mutate(SeUp = fit + 1.96*se.fit,
-         SeLo = fit - 1.96*se.fit,
-         pred.rel = as.numeric(exp(fit)/(1+exp(fit))),
-         upr.rel = as.numeric(exp(SeUp)/(1+exp(SeUp))),
-         lwr.rel = as.numeric(exp(SeLo)/(1+exp(SeLo))),
-         pred = (pred.rel - min(pred.rel))/(max(pred.rel) - min(pred.rel)),
-         upr = (upr.rel - min(pred.rel))/(max(pred.rel) - min(pred.rel)),
-         lwr = (lwr.rel - min(pred.rel))/(max(pred.rel) - min(pred.rel)))
+#get mean across the bird IDs
+pred.mn <- pred %>% 
+  group_by(Distance, Area.rd) %>% 
+  summarize(fit=mean(fit),
+            upr=mean(upr),
+            lwr=mean(lwr)) %>% 
+  ungroup()
 
-write.csv(pred, "RSFPredictions.csv", row.names=FALSE)
+#visualize
+ggplot(pred.mn) +
+  geom_line(aes(x=Distance, y=fit, colour=factor(Area.rd))) +
+  geom_ribbon(aes(x=Distance, ymin=lwr, ymax=upr, group=factor(Area.rd)), alpha=0.3)
+
+write.csv(pred.mn, "RSFPredictions.csv", row.names=FALSE)
+
+save.image("BoomWorkingSpace.Rdata")

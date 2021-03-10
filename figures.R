@@ -20,6 +20,7 @@ library(nord)
 library(cowplot)
 library(colorspace)
 library(pBrackets) #for brackets on spectrogram
+library(Cairo)
 
 my.theme <- theme_classic() +
   theme(text=element_text(size=12, family="Arial"),
@@ -42,7 +43,7 @@ boom3 <- read.csv("Booms3.csv") %>%
 
 sites <- read.csv("BirdIDSites.csv")
 
-nest <- read.csv("NestsForTerritorMapping.csv") %>% 
+nest <- read.csv("NestsForTerritoryMapping.csv") %>% 
   rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
   dplyr::mutate(ID=paste0(BirdID,"-",Year)) %>% 
@@ -595,8 +596,8 @@ ggsave("Figures/Fig4InterannualOverlap.jpeg", device="jpeg", width=10, height=5,
 pred <- read.csv("RSFPredictions.csv")
 
 plot.rsf <- ggplot(pred) +
-  geom_ribbon(aes(ymin=lwr, ymax=upr, x=Distance, group=Area.rd), alpha=0.4, show.legend=TRUE) +
-  geom_line(aes(x=Distance, y=pred, colour=factor(Area.rd)), size=1.5) +
+  geom_ribbon(aes(x=Distance, ymin=lwr, ymax=upr, group=factor(Area.rd)), alpha=0.4) +
+  geom_line(aes(x=Distance, y=fit, colour=factor(Area.rd))) +
   scale_colour_manual(values=diverging_hcl(4, "Blue-Yellow 3"), name="95% isopleth\narea (ha)") +
   my.theme +
   xlab("Distance from nest (m)") +
@@ -604,8 +605,7 @@ plot.rsf <- ggplot(pred) +
   theme(plot.title = element_text(hjust = 0.5)) +
   theme(strip.background = element_blank(),
         strip.text.y = element_blank()) +
-  #  scale_x_continuous(limits = c(0, 600)) +
-  scale_y_continuous(limits = c(-0.05, 1.10), breaks=c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
+  scale_y_continuous(limits = c(0,1), breaks=c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 plot.rsf
 
 ggsave(plot.rsf, file="Figures/Fig5RSF.jpeg", device = "jpeg", height=6, width=8, units="in")

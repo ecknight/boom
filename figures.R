@@ -318,14 +318,21 @@ height1 <- all %>%
 
 height2 <- height1[['ymax']] - height1[['ymin']]
 
-plots <- expand.grid(site=c(1:5))
+plots <- expand.grid(site=c(1:5), year=c("2016", "2017"))
 
 plots.list <- list()
 for(i in 1:nrow(plots)){
   
   site.i <- plots$site[i]
+  year.i <- plots$year[i]
   
   iso.i <- all %>% 
+    dplyr::filter(site==site.i,
+                  Year==year.i) %>% 
+    dplyr::select(-NestID, -NestX, -NestY, -nest, -X, -Y) %>% 
+    unique()
+  
+  iso.site.i <- all %>% 
     dplyr::filter(site==site.i) %>% 
     dplyr::select(-NestID, -NestX, -NestY, -nest, -X, -Y) %>% 
     unique()
@@ -339,9 +346,14 @@ for(i in 1:nrow(plots)){
     unique() %>% 
     arrange(Year, BirdID)
   
-  title.i <- paste0("Site ", site.i)
+  if(year.i=="2016"){
+    title.i <- paste0("Site ", site.i)
+  }
+  else{
+    title.i <- ""
+  }
   
-  lim1 <- iso.i %>% 
+  lim1 <- iso.site.i %>% 
     st_bbox()
   
   lim2 <- lim1[['xmax']] - (lim1[['xmax']] - lim1[['xmin']])/2
@@ -367,29 +379,28 @@ for(i in 1:nrow(plots)){
     scale_fill_manual(values=clrs.i$col) +
     scale_colour_manual(values=clrs.i$col) +
     scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth") +
-    xlim(c(xmin, xmax)) +
+    scale_x_continuous(position = "top", limits=c(xmin, xmax)) +
     ylim(c(ymin, ymax)) +
-    ggtitle(title.i) +
     xlab("") +
-    ylab("") +
+    ylab(title.i) +
     my.theme +
-    theme(plot.margin = unit(c(0,-1,0,-1), "cm"),
+    theme(plot.margin = unit(c(0.5,-1,0,-1), "cm"),
           legend.position = "none",
           plot.title = element_text(hjust = 0.5, size=16),
           panel.border = element_rect(colour = "black", fill=NA),
           strip.background = element_blank()) +
-    coord_sf(datum=NA) +
-    facet_grid(Year~., switch="both")
+    coord_sf(datum=NA)
   plot.i
   
-  if(site.i!=1){
+  if(site.i==1){
+    
     plots.list[[i]] <- plot.i +
-      theme(strip.text = element_blank())
-  }
-  else{
-    plots.list[[i]] <- plot.i +
-      theme(strip.text.y=element_text(size=16)) +
-      ggsn::scalebar(data=iso.i,
+      xlab(year.i) +
+      scale_x_continuous(position = "top", limits=c(xmin, xmax)) 
+    
+    if(year.i=="2017"){
+      plots.list[[i]] <- plots.list[[i]] +
+        ggsn::scalebar(data=iso.i,
                      transform=TRUE, model="WGS84",
                      dist=400, dist_unit="m",
                      box.fill=c("grey80", "grey20"),
@@ -402,6 +413,12 @@ for(i in 1:nrow(plots)){
                      facet.var="Year",
                      facet.lev="2017",
                      location="bottomleft")
+      
+    }
+
+  }
+  else{
+    plots.list[[i]] <- plot.i
   }
   
 }
@@ -410,45 +427,57 @@ for(i in 1:nrow(plots)){
 plot.legend.bird <- ggplot() +
   geom_sf(data=all, aes(colour=factor(BirdID)), lwd=1, inherit.aes = FALSE) +
   scale_colour_manual(values=clrs$col, name="Bird ID") + 
-  guides(col = guide_legend(nrow=1), byrow = TRUE) +
-  theme(legend.position="bottom")
+  guides(col = guide_legend(ncol=1), byrow = TRUE) +
+  theme(legend.position="right")
 #plot.legend.bird
 legend.bird <- get_legend(plot.legend.bird)
 
 plot.legend.iso <- ggplot() +
   geom_sf(data=all, aes(alpha=factor(iso)), fill="black", inherit.aes = FALSE, colour="grey30", show.legend = TRUE) +
   scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth", labels=c("50%", "95%")) + 
-  theme(legend.position="bottom")
+  theme(legend.position="right")
 legend.iso <- get_legend(plot.legend.iso)
 
 plot.legend.nest <- ggplot() +
   geom_point(data=nest1, aes(x=X, y=Y, shape=nest), colour="black", fill="black", size=4) +
   scale_shape_manual(values=c(23), name="Nest", labels=c("", "")) + 
-  theme(legend.position="bottom")
+  theme(legend.position="right")
 legend.nest <- get_legend(plot.legend.nest)
 
 #Plot distribution of area----
-plot.area <- ggplot(area) + 
+plot.area.2016 <- ggplot(subset(area, Year=="2016")) + 
   geom_histogram(aes(x=hr95), fill="grey70", show.legend=FALSE) +
-  xlab("95% isopleth area (ha)") +
+  xlab("") +
   ylab("Number of UDs") +
   xlim(c(0,60)) +
   my.theme + 
-  facet_grid(Year~., switch="both") +
-  theme(strip.background = element_blank(),
-        strip.text = element_blank(),
-        plot.margin = unit(c(0,1,0,0), "cm")) + 
+  theme(plot.margin = unit(c(0,1,0,0), "cm")) + 
   ggtitle("")
-#plot.area
+  
+plot.area.2017 <- ggplot(subset(area, Year=="2017")) + 
+  geom_histogram(aes(x=hr95), fill="grey70", show.legend=FALSE) +
+  xlab("") +
+  ylab("") +
+  xlim(c(0,60)) +
+  my.theme + 
+  theme(plot.margin = unit(c(0,1,0,0), "cm")) + 
+  ggtitle("")
 
 #Put it together----
-ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=16, height=6, units="in",
-       plot=grid.arrange(plots.list[[1]], plots.list[[2]], plots.list[[3]], plots.list[[4]], plots.list[[5]], plot.area,
+ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=5, height=14, units="in",
+       plot=grid.arrange(plots.list[[1]], plots.list[[2]], plots.list[[3]], plots.list[[4]], plots.list[[5]], plots.list[[6]], plots.list[[7]], plots.list[[8]], plots.list[[9]], plots.list[[10]],
+                         plot.area.2016, plot.area.2017,
                          legend.bird, legend.iso, legend.nest,
-                         widths=c(2,2,4,4,4,4,4),
-                         heights=c(8,1),
-                         layout_matrix=rbind(c(1,1,2,3,4,5,6),
-                                             c(9,8,7,7,7,7,NA))))
+                         widths=c(4,4,1),
+                         heights=c(2,2,4,4,4,4,4),
+                         layout_matrix=rbind(c(1,6,15),
+                                             c(1,6,14),
+                                             c(2,7,13),
+                                             c(3,8,13),
+                                             c(4,9,NA),
+                                             c(5,10,NA),
+                                             c(11,12,NA)),
+                         bottom="95% isopleth area (ha)"))
 
 #FIGURE 4: INTERANNUAL OVERLAP####
 
@@ -612,10 +641,7 @@ ggsave(plot.rsf, file="Figures/Fig5RSF.jpeg", device = "jpeg", height=6, width=8
 
 #APPENDICES####
 
-#Appendix 1: Data file----
-
-
-#Appendix 2. Sample size----
+#Appendix 1. Sample size----
 samplesize.kde <- read.csv("KDESampleSizeBootstrapResults.csv") %>% 
   unique() %>% 
   mutate(ID=str_sub(ID, 2, 10),
@@ -623,7 +649,8 @@ samplesize.kde <- read.csv("KDESampleSizeBootstrapResults.csv") %>%
   left_join(boom4 %>% 
               dplyr::select(ID, n) %>% 
               rename(truen = n)) %>% 
-  separate(ID, into=c("BirdID", "Year"), remove=FALSE)
+  separate(ID, into=c("BirdID", "Year"), remove=FALSE) %>% 
+  dplyr::filter(truen >= 5)
 
 id.levels <- samplesize.kde %>% 
   dplyr::select(ID, truen) %>% 
@@ -649,16 +676,45 @@ Asym <- read.csv("KDESampleSizeNLSAsymptotes.csv") %>%
 labs <- id.levels$ID
 names(labs) <- id.levels$order
 
+scaleFUN <- function(x) round(x, 0)
+
 plot.n <- ggplot() +
-  geom_point(data=samplesize.kde.levels, aes(x=n, y=hr95, colour=ID)) +
+  geom_point(data=samplesize.kde.levels, aes(x=n, y=hr95, colour=BirdID)) +
   geom_line(data=ls.fit, aes(x=n, y=r), colour="black", size=1) +
   geom_hline(data=Asym, aes(yintercept=Asym), colour="black", linetype="dashed", size=1) +
-  scale_colour_viridis_d() +
-  facet_wrap(~order, scales="free", labeller = labeller(order=labs)) + 
+  guides(col = guide_legend(nrow=1), byrow = TRUE) +
+  scale_x_continuous(labels=scaleFUN) +
+  scale_y_continuous(labels=scaleFUN) +
+  facet_wrap(Year~BirdID, scales="free", ncol=5) + 
   my.theme + 
+  xlab("Number of wingboom points") +
+  ylab("100% isopleth area (ha)") +
   theme(legend.position = "none")
 
-ggsave(plot.n, file="Figures/Appendix2SampleSize.jpeg", device = "jpeg", height=12, width=12, units="in")
+ggsave(plot.n, file="Figures/Appendix2SampleSize.jpeg", device = "jpeg", height=15, width=12, units="in")
+
+#DATA FOR DRYAD#####
+
+boom3 <- read.csv("Booms3.csv") %>% 
+  mutate(DateTime = ymd_hms(DateTime)) %>% 
+  mutate(ID=paste0(BirdID, "-", Year))
+
+app1 <- boom3 %>% 
+  group_by(ID) %>% 
+  summarize(n=n()) %>% 
+  ungroup() %>% 
+  left_join(boom3) %>% 
+  st_as_sf(coords=c("BoomX", "BoomY"), crs="+proj=utm +zone=12 +datum=WGS84") %>% 
+  st_transform(crs=4326) %>% 
+  st_coordinates() %>% 
+  cbind(boom3) %>% 
+  dplyr::filter(n >= 5) %>% 
+  mutate(Date=as.Date(DateTime),
+         Time=str_sub(DateTime, -8, -1)) %>% 
+  dplyr::select(BirdID, Date, Time, X, Y) %>% 
+  rename(Longitude=X, Latitude=Y) 
+
+write.csv(app1, "DataForDryad.csv", row.names=FALSE)
 
 #SUMMARY STATS####
 birdscaught <- boom4 %>% 

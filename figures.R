@@ -14,7 +14,6 @@ library(RColorBrewer)
 library(ggsn)
 library(seewave)
 library(tuneR)
-library(gridExtra)
 library(grid)
 library(nord)
 library(cowplot)
@@ -37,14 +36,12 @@ my.theme <- theme_classic() +
 #WRANGLING####
 
 boom3 <- read.csv("Booms3.csv") %>% 
-  dplyr::select(-X) %>% 
   mutate(DateTime = ymd_hms(DateTime)) %>% 
   mutate(ID=paste0(BirdID, "-", Year))
 
 sites <- read.csv("BirdIDSites.csv")
 
 nest <- read.csv("NestsForTerritoryMapping.csv") %>% 
-  rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
   dplyr::mutate(ID=paste0(BirdID,"-",Year)) %>% 
   dplyr::select(BirdID, Year, NestID)
@@ -265,13 +262,7 @@ hr.50 <- read_sf("shapefiles/HR50.shp") %>%
   st_transform(crs=4326)
 
 nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
-  st_as_sf(coords=c("LocationX", "LocationY"), crs="+proj=utm +zone=12 +datum=WGS84") %>% 
-  st_transform(crs=4326) %>% 
-  st_coordinates() %>% 
-  cbind(read.csv("NestsForTerritoryMapping.csv")) %>% 
-  rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
   dplyr::filter(BirdID!=1) %>% 
-  dplyr::mutate(ID=paste0(BirdID,"-",Year)) %>% 
   mutate(Year = as.character(Year),
          nest="Nest") %>% 
   dplyr::filter(ID %in% c(hr.95$ID))
@@ -286,9 +277,18 @@ pie(nchar(col_vector), col=col_vector)
 
 col_chosen <- col_vector[c(9:18, 28, 8, 20, 27, 7,
                            6, 19)]
+col_chosen <- viridis::plasma(length(unique(hr.95$BirdID)))
+col_chosen <- viridis::plasma(5)
+col_chosen <- rep(brewer.pal(11, "RdYlBu"),2)
+col_chosen <- nord("aurora", 6)
+col_chosen <- qualitative_hcl(5, "dynamic")
+col_chosen <- diverging_hcl(5, "Tofino")
 
 clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   col=sample(col_chosen, n))
+                   col=sample(rep(col_chosen,4), n))
+
+clrs <- data.frame(BirdID=unique(hr.95$BirdID),
+                   col=(rep(col_chosen,4))[1:n])
 
 pie(rep(1,n), col=clrs$col)
 
@@ -301,24 +301,9 @@ all <- rbind(hr.95 %>%
   dplyr::filter(!is.na(area)) %>% 
   left_join(clrs)
 
-ggplot() +
-  geom_sf(data=all, aes(fill=factor(BirdID)), inherit.aes = FALSE, colour="grey30") +
-  scale_fill_manual(values=clrs$col)
-
 #Plot KDE----
-width1 <- all %>% 
-  dplyr::filter(site==5) %>% 
-  st_bbox()
-
-width2 <- width1[['xmax']] - width1[['xmin']]
-
-height1 <- all %>% 
-  dplyr::filter(site==3) %>% 
-  st_bbox()
-
-height2 <- height1[['ymax']] - height1[['ymin']]
-
-plots <- expand.grid(site=c(1:5), year=c("2016", "2017"))
+sizes <- data.frame(site=c(1:5),
+                    size=c(200,300,400,300,400))
 
 plots.list <- list()
 for(i in 1:nrow(plots)){
@@ -337,8 +322,12 @@ for(i in 1:nrow(plots)){
     dplyr::select(-NestID, -NestX, -NestY, -nest, -X, -Y) %>% 
     unique()
   
+  size.i <- sizes %>% 
+    dplyr::filter(site==site.i)
+  
   nest.i <- all %>% 
-    dplyr::filter(site==site.i) 
+    dplyr::filter(site==site.i,
+                  Year==year.i) 
   
   clrs.i <- nest.i %>% 
     as.data.frame() %>% 
@@ -346,80 +335,48 @@ for(i in 1:nrow(plots)){
     unique() %>% 
     arrange(Year, BirdID)
   
-  if(year.i=="2016"){
-    title.i <- paste0("Site ", site.i)
-  }
-  else{
-    title.i <- ""
-  }
+  new_bb = c(st_bbox(iso.site.i)[['xmin']], st_bbox(iso.site.i)[['ymin']]-size.i$size*0.000005,
+             st_bbox(iso.site.i)[['xmax']], st_bbox(iso.site.i)[['ymax']])
+  names(new_bb) = c("xmin", "ymin", "xmax", "ymax")
+  attr(new_bb, "class") = "bbox"
   
-  lim1 <- iso.site.i %>% 
-    st_bbox()
+  attr(st_geometry(iso.i), "bbox") = new_bb
   
-  lim2 <- lim1[['xmax']] - (lim1[['xmax']] - lim1[['xmin']])/2
-  lim3 <- lim1[['ymax']] - (lim1[['ymax']] - lim1[['ymin']])/2
-  
-  xmin=lim2 - width2/2
-  xmax=lim2 + width2/2
-  ymin=lim3 - height2/2
-  ymax=lim3 + height2/2
-  
-  if(site.i==1){
-    
-    new_bb = c(xmin, ymin, xmax, ymax)
-    names(new_bb) = c("xmin", "ymin", "xmax", "ymax")
-    attr(new_bb, "class") = "bbox"
-    
-    attr(st_geometry(iso.i), "bbox") = new_bb
-  }
+  xmin <- st_bbox(iso.site.i)[['xmin']]-size.i$size*0.00001
+  xmax <- st_bbox(iso.site.i)[['xmax']]+size.i$size*0.00001
+  ymin <- st_bbox(iso.site.i)[['ymin']]-size.i$size*0.000005
+  ymax <- st_bbox(iso.site.i)[['ymax']]
   
   plot.i <- ggplot() +
-    geom_sf(data=iso.i, aes(colour=factor(BirdID), alpha=factor(iso)), lwd=1, inherit.aes = FALSE, fill="grey30", show.legend = FALSE) +
-    geom_point(data=nest.i, aes(x=X, y=Y, colour=factor(BirdID)), shape=18, size=4) +
-    scale_fill_manual(values=clrs.i$col) +
+    geom_sf(data=iso.i, aes(colour=factor(BirdID), alpha=factor(iso)), lwd=1, inherit.aes = FALSE, fill="black", show.legend = FALSE) +
     scale_colour_manual(values=clrs.i$col) +
-    scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth") +
-    scale_x_continuous(position = "top", limits=c(xmin, xmax)) +
-    ylim(c(ymin, ymax)) +
+    scale_alpha_manual(values=c(0.4, 0.1), name="Isopleth") +
     xlab("") +
-    ylab(title.i) +
+    ylab("") +
+    xlim(c(xmin, xmax)) +
+    ylim(c(ymin, ymax)) +
+    ggtitle(paste0("Site ", site.i, "\n", "Year ", year.i)) +
     my.theme +
-    theme(plot.margin = unit(c(0.5,-1,0,-1), "cm"),
-          legend.position = "none",
-          plot.title = element_text(hjust = 0.5, size=16),
-          panel.border = element_rect(colour = "black", fill=NA),
-          strip.background = element_blank()) +
-    coord_sf(datum=NA)
+    theme(plot.margin = unit(c(0,-1,0,-1), "cm"),
+          legend.position = ifelse(bird.i==17, "right", "none"),
+          plot.title = element_text(hjust = 0.5, size=12)) +
+    coord_sf(datum=NA) +
+    ggsn::scalebar(data=iso.i,
+                   transform=TRUE, model="WGS84",
+                   dist=size.i$size, dist_unit="m",
+                   box.fill=c("grey80", "grey20"),
+                   box.color="grey20",
+                   st.bottom=FALSE,
+                   st.size=3,
+                   st.dist=0.04,
+                   border.size = 0.5,
+                   height = 0.05,
+                   location="bottomleft")
   plot.i
   
-  if(site.i==1){
-    
-    plots.list[[i]] <- plot.i +
-      xlab(year.i) +
-      scale_x_continuous(position = "top", limits=c(xmin, xmax)) 
-    
-    if(year.i=="2017"){
-      plots.list[[i]] <- plots.list[[i]] +
-        ggsn::scalebar(data=iso.i,
-                     transform=TRUE, model="WGS84",
-                     dist=400, dist_unit="m",
-                     box.fill=c("grey80", "grey20"),
-                     box.color="grey20",
-                     st.bottom=FALSE,
-                     st.size=3,
-                     st.dist=0.04,
-                     border.size = 0.5,
-                     height = 0.05,
-                     facet.var="Year",
-                     facet.lev="2017",
-                     location="bottomleft")
-      
-    }
-
-  }
-  else{
-    plots.list[[i]] <- plot.i
-  }
+  plots.list[[i]] <- plot.i + 
+    geom_point(data=nest.i, aes(x=X, y=Y, fill=factor(BirdID)), shape=23, size=3, show.legend = FALSE, colour="black") +
+    scale_fill_manual(values=clrs.i$col)
   
 }
 
@@ -434,55 +391,55 @@ legend.bird <- get_legend(plot.legend.bird)
 
 plot.legend.iso <- ggplot() +
   geom_sf(data=all, aes(alpha=factor(iso)), fill="black", inherit.aes = FALSE, colour="grey30", show.legend = TRUE) +
-  scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth", labels=c("50%", "95%")) + 
-  theme(legend.position="right")
+  scale_alpha_manual(values=c(0.4, 0.1), name="Isopleth", labels=c("50%", "95%")) + 
+  theme(legend.position="bottom")
 legend.iso <- get_legend(plot.legend.iso)
 
 plot.legend.nest <- ggplot() +
-  geom_point(data=nest1, aes(x=X, y=Y, shape=nest), colour="black", fill="black", size=4) +
+  geom_point(data=nest1, aes(x=X, y=Y, shape=nest), colour="black", fill="white", size=4) +
   scale_shape_manual(values=c(23), name="Nest", labels=c("", "")) + 
-  theme(legend.position="right")
+  theme(legend.position="bottom")
 legend.nest <- get_legend(plot.legend.nest)
 
 #Plot distribution of area----
-plot.area.2016 <- ggplot(subset(area, Year=="2016")) + 
-  geom_histogram(aes(x=hr95), fill="grey70", show.legend=FALSE) +
-  xlab("") +
+plot.area <- ggplot(area) + 
+  geom_histogram(aes(x=hr95, fill=Year), colour="grey30", show.legend=FALSE) +
+  scale_fill_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
+  xlab("95% isopleth area (ha)") +
   ylab("Number of UDs") +
   xlim(c(0,60)) +
   my.theme + 
-  theme(plot.margin = unit(c(0,1,0,0), "cm")) + 
+  theme(plot.margin = unit(c(0,0,0,0), "cm")) + 
   ggtitle("")
-  
-plot.area.2017 <- ggplot(subset(area, Year=="2017")) + 
-  geom_histogram(aes(x=hr95), fill="grey70", show.legend=FALSE) +
-  xlab("") +
-  ylab("") +
+#plot.area
+
+plot.legend.year <- ggplot(area) + 
+  geom_histogram(aes(x=hr95, fill=Year), colour="grey30", show.legend=TRUE) +
+  scale_fill_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
+  xlab("95% isopleth area (ha)") +
+  ylab("Number of UDs") +
   xlim(c(0,60)) +
   my.theme + 
-  theme(plot.margin = unit(c(0,1,0,0), "cm")) + 
+  theme(plot.margin = unit(c(0,0,0,0), "cm"),
+        legend.position = "bottom") + 
   ggtitle("")
+legend.year <- get_legend(plot.legend.year)
 
 #Put it together----
-ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=5, height=14, units="in",
+ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=8, height=8, units="in",
        plot=grid.arrange(plots.list[[1]], plots.list[[2]], plots.list[[3]], plots.list[[4]], plots.list[[5]], plots.list[[6]], plots.list[[7]], plots.list[[8]], plots.list[[9]], plots.list[[10]],
-                         plot.area.2016, plot.area.2017,
-                         legend.bird, legend.iso, legend.nest,
-                         widths=c(4,4,1),
-                         heights=c(2,2,4,4,4,4,4),
-                         layout_matrix=rbind(c(1,6,15),
-                                             c(1,6,14),
-                                             c(2,7,13),
-                                             c(3,8,13),
-                                             c(4,9,NA),
-                                             c(5,10,NA),
-                                             c(11,12,NA)),
-                         bottom="95% isopleth area (ha)"))
+                         plot.area,
+                         legend.iso, legend.nest, legend.year,
+                         widths=c(4,4,4,4),
+                         heights=c(4,4,4,1),
+                         layout_matrix=rbind(c(1,2,3,4),
+                                             c(5,6,7,8),
+                                             c(9,10,11,11),
+                                             c(13,12,14,14))))
 
 #FIGURE 4: INTERANNUAL OVERLAP####
 
 overlap.years <- read.csv("PHRBetweenYears.csv") %>% 
-  dplyr::rename(BirdID=BirdID1) %>% 
   arrange(BirdID)
 
 hr.95 <- read_sf("shapefiles/HR95.shp") %>% 
@@ -506,14 +463,8 @@ hr.10 <- read_sf("shapefiles/HR10.shp") %>%
   left_join(sites) %>% 
   st_transform(crs=4326)
 
-nest1 <- read.csv("NestsForTerritorMapping.csv") %>% 
-  st_as_sf(coords=c("LocationX", "LocationY"), crs="+proj=utm +zone=12 +datum=WGS84") %>% 
-  st_transform(crs=4326) %>% 
-  st_coordinates() %>% 
-  cbind(read.csv("NestsForTerritorMapping.csv")) %>% 
-  rename(BirdID=MaleID, NestX=LocationX, NestY=LocationY) %>% 
+nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
   dplyr::filter(BirdID!=1) %>% 
-  dplyr::mutate(ID=paste0(BirdID,"-",Year)) %>% 
   mutate(Year = as.character(Year),
          nest="Nest") %>% 
   dplyr::filter(ID %in% c(hr.95$ID))
@@ -557,12 +508,11 @@ for(i in 1:nrow(overlap.years)){
   names(new_bb) = c("xmin", "ymin", "xmax", "ymax")
   attr(new_bb, "class") = "bbox"
   
-  attr(st_geometry(all.i), "bbox") = new_bb
+  attr(st_geometry(iso.i), "bbox") = new_bb
   
-  plot.year.list[[i]] <- ggplot() +
+  plot.i <- ggplot() +
     geom_sf(data=iso.i, aes(colour=Year, alpha=factor(iso)), lwd=1, inherit.aes = FALSE, fill="black", show.legend = FALSE) +
-    geom_point(data=nest.i, aes(x=X, y=Y, colour=Year), shape=18, size=3, show.legend = FALSE) +
-    scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth") +
+    scale_alpha_manual(values=c(0.4, 0.1), name="Isopleth") +
     scale_colour_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
     xlab("") +
     ylab("") +
@@ -572,7 +522,7 @@ for(i in 1:nrow(overlap.years)){
           legend.position = ifelse(bird.i==17, "right", "none"),
           plot.title = element_text(hjust = 0.5, size=12)) +
     coord_sf(datum=NA) +
-    ggsn::scalebar(data=all.i,
+    ggsn::scalebar(data=iso.i,
                    transform=TRUE, model="WGS84",
                    dist=size.i$size, dist_unit="m",
                    box.fill=c("grey80", "grey20"),
@@ -586,11 +536,15 @@ for(i in 1:nrow(overlap.years)){
                    facet.lev="2017",
                    location="bottomleft")
   
+  plot.year.list[[i]] <- plot.i + 
+    geom_point(data=nest.i, aes(x=X, y=Y, fill=Year), shape=23, size=3, show.legend = FALSE, colour="black") +
+    scale_fill_manual(values=diverging_hcl(2, "Blue-Yellow 3"))
+  
 }
 
 #Make legends----
 plot.legend.year <- ggplot() +
-  geom_sf(data=all, aes(colour=Year), lwd=2, inherit.aes = FALSE, fill="grey30", show.legend = TRUE) +
+  geom_sf(data=all, aes(colour=Year), lwd=2, inherit.aes = FALSE, fill="grey30", show.legend = TRUE, alpha=0.1) +
   scale_colour_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
   theme(legend.position="bottom")
 plot.legend.year
@@ -598,27 +552,31 @@ legend.year <- get_legend(plot.legend.year)
 
 plot.legend.iso <- ggplot() +
   geom_sf(data=all, aes(alpha=factor(iso)), fill="black", inherit.aes = FALSE, colour="grey30", show.legend = TRUE) +
-  scale_alpha_manual(values=c(0.5, 0.2), name="Isopleth", labels=c("50%", "95%")) +
+  scale_alpha_manual(values=c(0.4, 0.1), name="Isopleth", labels=c("50%", "95%")) +
   theme(legend.position="bottom")
 legend.iso <- get_legend(plot.legend.iso)
 
 plot.legend.nest <- ggplot() +
-  geom_point(data=nest1, aes(x=X, y=Y, shape=nest), colour="black", fill="black", size=4) +
-  scale_shape_manual(values=c(23), name="") +
+  geom_point(data=nest1, aes(x=X, y=Y, shape=nest), colour="black", fill="white", size=4) +
+  scale_shape_manual(values=c(23), size=2, name="") +
   theme(legend.position="bottom")
 legend.nest <- get_legend(plot.legend.nest)
 
-ggsave("Figures/Fig4InterannualOverlap.jpeg", device="jpeg", width=10, height=5, units="in",
+ggsave("Figures/Fig4InterannualOverlap.jpeg", device="jpeg", width=8, height=8, units="in",
        plot=grid.arrange(plot.year.list[[1]], plot.year.list[[2]], plot.year.list[[3]], plot.year.list[[4]], plot.year.list[[5]], 
                          plot.year.list[[6]], plot.year.list[[7]], plot.year.list[[8]], plot.year.list[[9]], plot.year.list[[10]],
                          legend.nest,
                          legend.iso,
                          legend.year,
-                         widths=c(10,10,10,10,10),
-                         heights=c(10,10,1),
-                         layout_matrix=rbind(c(1,2,3,4,5),
-                                             c(6,7,8,9,10),
-                                             c(NA,11,12,13,NA))))
+                         heights=c(10,10,2,2,2,2,2),
+                         widths=c(10,10,10,10),
+                         layout_matrix=rbind(c(1,2,3,4),
+                                             c(5,6,7,8),
+                                             c(9,10,NA,NA),
+                                             c(9,10,11,11),
+                                             c(9,10,12,12),
+                                             c(9,10,13,13),
+                                             c(9,10,NA,NA))))
 
 
 #FIGURE 5. RSF####

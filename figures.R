@@ -182,7 +182,7 @@ sites.wgs.sf <- sites.wgs.center %>%
 #Get background data
 register_google(key="AIzaSyCta9P4x7jGNELznpwlx07VZkkLVk3FP4M")
 
-map <- get_map(area.wgs.center, zoom=11, force=TRUE, maptype="satellite", color="color")
+map <- get_map(area.wgs.center, zoom=9, force=TRUE, maptype="satellite", color="color")
 
 map_attributes <- attributes(map)
 
@@ -190,6 +190,9 @@ map_transparent <- matrix(adjustcolor(map,
                                       alpha.f = 0.8), 
                           nrow = nrow(map))
 attributes(map_transparent) <- map_attributes
+
+#Set colours
+clrs.sa <- c("#D35000","#9C3E5D","#8175CB","#5087C1","#00767A")
 
 #map
 map.site <- ggmap(map_transparent) +
@@ -206,7 +209,7 @@ map.site <- ggmap(map_transparent) +
             colour="grey20") +
   geom_text(label="McLelland\nLake", aes(x=-111.315, y=57.485), size=4, colour="grey80") +
   geom_text(label="Athabasca River", aes(x=-111.508, y=57.57), size=4, colour="grey80", angle = 85) +
-  scale_colour_manual(values=diverging_hcl(5, "Blue-Yellow 3")) +
+  scale_colour_manual(values=clrs.sa) +
   ggspatial::annotation_north_arrow(location = "tr",
                                     style = ggspatial::north_arrow_orienteering(fill = c("grey80", "grey20"), line_col = "grey20")) +
   ggsn::scalebar(x.min = -111.75, x.max = -111.55, 
@@ -234,7 +237,7 @@ plot.sa <- map.site +
                 bottom=0.6,
                 left=0.02,
                 top=0.98)
-#plot.sa
+plot.sa
 
 ggsave("Figures/Fig2StudyArea.jpeg", device="jpeg", width=8, height=7, units="in", plot=plot.sa)
 
@@ -268,29 +271,40 @@ nest1 <- read.csv("NestsForTerritoryMapping.csv") %>%
   dplyr::filter(ID %in% c(hr.95$ID))
 
 #Set up colours----
-n <- length(unique(hr.95$BirdID))
+birds <- hr.95 %>% 
+  as.data.frame() %>% 
+  dplyr::select(site, BirdID) %>% 
+  unique() %>% 
+  arrange(site, BirdID)
+birds
 
-qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',] %>% 
-  dplyr::filter(colorblind==TRUE)
-col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
-pie(nchar(col_vector), col=col_vector)
+clrs1 <- data.frame(BirdID=c(NA,4,5,6,NA),
+                   col=sequential_hcl(5, "Oranges")) %>% 
+  dplyr::filter(!is.na(BirdID))
+pie(rep(1,3), col=clrs1$col)
 
-col_chosen <- col_vector[c(9:18, 28, 8, 20, 27, 7,
-                           6, 19)]
-col_chosen <- viridis::plasma(length(unique(hr.95$BirdID)))
-col_chosen <- viridis::plasma(5)
-col_chosen <- rep(brewer.pal(11, "RdYlBu"),2)
-col_chosen <- nord("aurora", 6)
-col_chosen <- qualitative_hcl(5, "dynamic")
-col_chosen <- diverging_hcl(5, "Tofino")
+clrs2 <- data.frame(BirdID=c(NA,32,NA,36,NA),
+                    col=sequential_hcl(5, "Burg")) %>% 
+  dplyr::filter(!is.na(BirdID))
+pie(rep(1,2), col=clrs2$col)
 
-clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   col=sample(rep(col_chosen,4), n))
+clrs3 <- data.frame(BirdID=c(1,2,93,NA),
+                    col=sequential_hcl(4, "Purples 3")) %>% 
+  dplyr::filter(!is.na(BirdID))
+pie(rep(1,3), col=clrs3$col)
 
-clrs <- data.frame(BirdID=unique(hr.95$BirdID),
-                   col=(rep(col_chosen,4))[1:n])
+clrs4 <- data.frame(BirdID=c(15,17,44,NA),
+                    col=sequential_hcl(4, "Blues")) %>% 
+  dplyr::filter(!is.na(BirdID))
+pie(rep(1,3), col=clrs4$col)
 
-pie(rep(1,n), col=clrs$col)
+clrs5 <- data.frame(BirdID=c(19,20,21,22,54,52),
+                    col=sequential_hcl(6, "ag_Grnyl")) %>% 
+  dplyr::filter(!is.na(BirdID))
+pie(rep(1,6), col=clrs5$col)
+
+clrs <- rbind(clrs1, clrs2, clrs3, clrs4, clrs5)
+pie(rep(1,17), col=clrs$col)
 
 #Wrangling----
 all <- rbind(hr.95 %>% 
@@ -304,6 +318,12 @@ all <- rbind(hr.95 %>%
 #Plot KDE----
 sizes <- data.frame(site=c(1:5),
                     size=c(200,300,400,300,400))
+
+plots <- data.frame(all) %>% 
+  dplyr::select(site, Year) %>% 
+  rename(year=Year) %>% 
+  unique() %>% 
+  arrange(site, year)
 
 plots.list <- list()
 for(i in 1:nrow(plots)){
@@ -358,7 +378,7 @@ for(i in 1:nrow(plots)){
     ggtitle(paste0("Site ", site.i, "\n", "Year ", year.i)) +
     my.theme +
     theme(plot.margin = unit(c(0,-1,0,-1), "cm"),
-          legend.position = ifelse(bird.i==17, "right", "none"),
+          legend.position = "none",
           plot.title = element_text(hjust = 0.5, size=12)) +
     coord_sf(datum=NA) +
     ggsn::scalebar(data=iso.i,
@@ -381,14 +401,6 @@ for(i in 1:nrow(plots)){
 }
 
 #Make legends----
-plot.legend.bird <- ggplot() +
-  geom_sf(data=all, aes(colour=factor(BirdID)), lwd=1, inherit.aes = FALSE) +
-  scale_colour_manual(values=clrs$col, name="Bird ID") + 
-  guides(col = guide_legend(ncol=1), byrow = TRUE) +
-  theme(legend.position="right")
-#plot.legend.bird
-legend.bird <- get_legend(plot.legend.bird)
-
 plot.legend.iso <- ggplot() +
   geom_sf(data=all, aes(alpha=factor(iso)), fill="black", inherit.aes = FALSE, colour="grey30", show.legend = TRUE) +
   scale_alpha_manual(values=c(0.4, 0.1), name="Isopleth", labels=c("50%", "95%")) + 
@@ -403,8 +415,8 @@ legend.nest <- get_legend(plot.legend.nest)
 
 #Plot distribution of area----
 plot.area <- ggplot(area) + 
-  geom_histogram(aes(x=hr95, fill=Year), colour="grey30", show.legend=FALSE) +
-  scale_fill_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
+  geom_histogram(aes(x=hr95, fill=Year), colour="black", show.legend=FALSE) +
+  scale_fill_manual(values=c("grey50", "grey20")) +
   xlab("95% isopleth area (ha)") +
   ylab("Number of UDs") +
   xlim(c(0,60)) +
@@ -414,8 +426,8 @@ plot.area <- ggplot(area) +
 #plot.area
 
 plot.legend.year <- ggplot(area) + 
-  geom_histogram(aes(x=hr95, fill=Year), colour="grey30", show.legend=TRUE) +
-  scale_fill_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
+  geom_histogram(aes(x=hr95, fill=Year), colour="black", show.legend=TRUE) +
+  scale_fill_manual(values=c("grey50", "grey20")) +
   xlab("95% isopleth area (ha)") +
   ylab("Number of UDs") +
   xlim(c(0,60)) +
@@ -439,7 +451,7 @@ ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=8, height=8, units="in",
 
 #FIGURE 4: INTERANNUAL OVERLAP####
 
-overlap.years <- read.csv("PHRBetweenYears.csv") %>% 
+overlap.years <- read.csv("PHRBetweenYears.csv") %>%  
   arrange(BirdID)
 
 hr.95 <- read_sf("shapefiles/HR95.shp") %>% 
@@ -513,7 +525,8 @@ for(i in 1:nrow(overlap.years)){
   plot.i <- ggplot() +
     geom_sf(data=iso.i, aes(colour=Year, alpha=factor(iso)), lwd=1, inherit.aes = FALSE, fill="black", show.legend = FALSE) +
     scale_alpha_manual(values=c(0.4, 0.1), name="Isopleth") +
-    scale_colour_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
+    scale_colour_manual(values=c("grey50", "grey20")) +
+#    scale_colour_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
     xlab("") +
     ylab("") +
     ggtitle(paste0("Bird ", bird.i, "\n", round(overlap.years$Overlap.mn[i],3)*100, " % overlap")) +
@@ -538,16 +551,15 @@ for(i in 1:nrow(overlap.years)){
   
   plot.year.list[[i]] <- plot.i + 
     geom_point(data=nest.i, aes(x=X, y=Y, fill=Year), shape=23, size=3, show.legend = FALSE, colour="black") +
-    scale_fill_manual(values=diverging_hcl(2, "Blue-Yellow 3"))
+    scale_fill_manual(values=c("grey50", "grey20"))
   
 }
 
 #Make legends----
 plot.legend.year <- ggplot() +
   geom_sf(data=all, aes(colour=Year), lwd=2, inherit.aes = FALSE, fill="grey30", show.legend = TRUE, alpha=0.1) +
-  scale_colour_manual(values=diverging_hcl(2, "Blue-Yellow 3")) +
+  scale_colour_manual(values=c("grey50", "grey20")) +
   theme(legend.position="bottom")
-plot.legend.year
 legend.year <- get_legend(plot.legend.year)
 
 plot.legend.iso <- ggplot() +
@@ -558,7 +570,7 @@ legend.iso <- get_legend(plot.legend.iso)
 
 plot.legend.nest <- ggplot() +
   geom_point(data=nest1, aes(x=X, y=Y, shape=nest), colour="black", fill="white", size=4) +
-  scale_shape_manual(values=c(23), size=2, name="") +
+  scale_shape_manual(values=c(23), name="") +
   theme(legend.position="bottom")
 legend.nest <- get_legend(plot.legend.nest)
 

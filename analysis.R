@@ -53,6 +53,7 @@ boom3 <- read.csv("Booms3.csv") %>%
   dplyr::select(-NestID, -NestX, -NestY)
 
 #Create dataframe to identify sites for each bird
+#rearrange site #s so they're pretty on the map
 table(boom3$Year, boom3$BirdID)
 sites <- data.frame(BirdID = unique(boom3$BirdID),
                     site=c(2,2,3,3,3,1,1,2,4,4,4,4,4,5,5,5,5,5,5,1,4,4,2,2)) %>% 

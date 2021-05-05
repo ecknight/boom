@@ -600,7 +600,7 @@ plot.rsf <- ggplot(pred) +
   scale_colour_manual(values=diverging_hcl(4, "Blue-Yellow 3"), name="95% isopleth\narea (ha)") +
   my.theme +
   xlab("Distance from nest (m)") +
-  ylab("Wingboom relative selection probability") +
+  ylab("Relative selection probability for wing-boom display") +
   theme(plot.title = element_text(hjust = 0.5)) +
   theme(strip.background = element_blank(),
         strip.text.y = element_blank()) +

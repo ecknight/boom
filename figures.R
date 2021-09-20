@@ -82,9 +82,10 @@ spectro <- ggspectro(wav.f, flim=c(0,6), wl=1024, ovlp=60) +
   xlim(c(0, 0.9)) +
   xlab("Time (s)") +
   ylab("Frequency (kHz)") +
-  geom_text(x=0, y=1, label="Wingboom", angle=90, size=6, family="Arial") + 
-  geom_text(x=0, y=4, label="Call", angle=90, size=6, family="Arial") +
-  my.theme
+  geom_text(x=0, y=1, label="Wingboom", angle=90, size=5, family="Arial") + 
+  geom_text(x=0, y=4, label="Call", angle=90, size=5, family="Arial") +
+  my.theme +
+  theme(axis.title = element_text(size=14))
 spectro
 grid.brackets(x1=400, x2=400, y1=1480, y2=100, lwd=2, col="black")
 grid.brackets(x1=400, x2=400, y1=2100, y2=1480, lwd=2, col="black")
@@ -225,10 +226,12 @@ map.site <- ggmap(map_transparent) +
   xlim(c(min(area.wgs.center$X)-0.35, max(area.wgs.center$X)+0.25)) +
   ylim(c(min(area.wgs.center$Y)-0.15, max(area.wgs.center$Y)+0.15)) +
   theme(plot.margin = unit(c(0.5,0,0,0), "cm"),
-        legend.position = "right") +
+        legend.position = "right",
+        axis.text.x.bottom=element_text(size=10),
+        axis.text.y.left=element_text(size=10)) +
   guides(colour = guide_legend(override.aes = list(size=5),
                                ncol=2))
-map.site
+#map.site
 
 #Put it together####
 plot.sa <- map.site +
@@ -237,9 +240,9 @@ plot.sa <- map.site +
                 bottom=0.6,
                 left=0.02,
                 top=0.98)
-plot.sa
+#plot.sa
 
-ggsave("Figures/Fig2StudyArea.jpeg", device="jpeg", width=8, height=7, units="in", plot=plot.sa)
+ggsave("Figures/Fig2StudyArea.jpeg", device="jpeg", width=8, height=7, units="in", plot=plot.sa, dpi=600)
 
 
 #FIGURE 3. KDE RESULTS####
@@ -438,7 +441,7 @@ plot.legend.year <- ggplot(area) +
 legend.year <- get_legend(plot.legend.year)
 
 #Put it together----
-ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=8, height=8, units="in",
+ggsave("Figures/Fig3UDArea.jpeg", device="jpeg", width=8, height=8, units="in", dpi=600,
        plot=grid.arrange(plots.list[[1]], plots.list[[2]], plots.list[[3]], plots.list[[4]], plots.list[[5]], plots.list[[6]], plots.list[[7]], plots.list[[8]], plots.list[[9]], plots.list[[10]],
                          plot.area,
                          legend.iso, legend.nest, legend.year,
@@ -574,7 +577,7 @@ plot.legend.nest <- ggplot() +
   theme(legend.position="bottom")
 legend.nest <- get_legend(plot.legend.nest)
 
-ggsave("Figures/Fig4InterannualOverlap.jpeg", device="jpeg", width=8, height=8, units="in",
+ggsave("Figures/Fig4InterannualOverlap.jpeg", device="jpeg", width=8, height=8, units="in", dpi=600,
        plot=grid.arrange(plot.year.list[[1]], plot.year.list[[2]], plot.year.list[[3]], plot.year.list[[4]], plot.year.list[[5]], 
                          plot.year.list[[6]], plot.year.list[[7]], plot.year.list[[8]], plot.year.list[[9]], plot.year.list[[10]],
                          legend.nest,
@@ -600,14 +603,14 @@ plot.rsf <- ggplot(pred) +
   scale_colour_manual(values=diverging_hcl(4, "Blue-Yellow 3"), name="95% isopleth\narea (ha)") +
   my.theme +
   xlab("Distance from nest (m)") +
-  ylab("Relative selection probability for wing-boom display") +
+  ylab("Relative selection probability\nfor wing-boom display") +
   theme(plot.title = element_text(hjust = 0.5)) +
   theme(strip.background = element_blank(),
         strip.text.y = element_blank()) +
   scale_y_continuous(limits = c(0,1), breaks=c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 plot.rsf
 
-ggsave(plot.rsf, file="Figures/Fig5RSF.jpeg", device = "jpeg", height=6, width=8, units="in")
+ggsave(plot.rsf, file="Figures/Fig5RSF.jpeg", device = "jpeg", height=6, width=8, units="in", dpi=600)
 
 #APPENDICES####
 
@@ -661,7 +664,7 @@ plot.n <- ggplot() +
   ylab("100% isopleth area (ha)") +
   theme(legend.position = "none")
 
-ggsave(plot.n, file="Figures/Appendix2SampleSize.jpeg", device = "jpeg", height=15, width=12, units="in")
+ggsave(plot.n, file="Figures/Appendix2SampleSize.jpeg", device = "jpeg", height=15, width=12, units="in", dpi=600)
 
 #DATA FOR DRYAD#####
 

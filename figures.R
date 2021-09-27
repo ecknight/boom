@@ -676,18 +676,25 @@ app1 <- boom3 %>%
   group_by(ID) %>% 
   summarize(n=n()) %>% 
   ungroup() %>% 
-  left_join(boom3) %>% 
-  st_as_sf(coords=c("BoomX", "BoomY"), crs="+proj=utm +zone=12 +datum=WGS84") %>% 
-  st_transform(crs=4326) %>% 
-  st_coordinates() %>% 
-  cbind(boom3) %>% 
+  left_join(boom3 %>%
+              st_as_sf(coords=c("BoomX", "BoomY"), crs="+proj=utm +zone=12 +datum=WGS84") %>% 
+              st_transform(crs=4326) %>% 
+              st_coordinates() %>% 
+              cbind(boom3)) %>% 
   dplyr::filter(n >= 5) %>% 
   mutate(Date=as.Date(DateTime),
          Time=str_sub(DateTime, -8, -1)) %>% 
   dplyr::select(BirdID, Date, Time, X, Y) %>% 
   rename(Longitude=X, Latitude=Y) 
 
-write.csv(app1, "DataForDryad.csv", row.names=FALSE)
+write.csv(app1, "ORNITH-21-054_WingboomLocations.csv", row.names=FALSE)
+
+nest1 <- read.csv("NestsForTerritoryMapping.csv") %>% 
+  dplyr::filter(BirdID %in% app1$BirdID) %>% 
+  rename(Longitude=X, Latitude=Y) %>% 
+  dplyr::select(BirdID, Year, Longitude, Latitude)
+
+write.csv(app1, "ORNITH-21-054_NestLocations.csv", row.names=FALSE)
 
 #SUMMARY STATS####
 birdscaught <- boom4 %>% 

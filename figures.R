@@ -610,7 +610,7 @@ plot.rsf <- ggplot(pred) +
   scale_y_continuous(limits = c(0,1), breaks=c(0, 0.2, 0.4, 0.6, 0.8, 1.0))
 plot.rsf
 
-ggsave(plot.rsf, file="Figures/Fig5RSF.jpeg", device = "jpeg", height=6, width=8, units="in", dpi=600)
+ggsave(plot.rsf, file="Figures/Fig5RSF.jpeg", device = "jpeg", height=4, width=6, units="in", dpi=600)
 
 #APPENDICES####
 
